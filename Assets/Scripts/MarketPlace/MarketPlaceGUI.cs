@@ -3,8 +3,7 @@ using System.Linq;
 using System.Collections.Generic;
 
 using UnityEngine;
-
-using TMPro;
+using UnityEngine.UI;
 
 using BarthaSzabolcs.PooledScrolledList;
 
@@ -14,19 +13,25 @@ namespace BarthaSzabolcs.MarketPlace
     {
         #region Datamembers
 
+        #region Enums
+
+        public enum OrderProperty { Name, Ammount, Price };
+
+        #endregion
         #region Editor Settings
 
-        [Header("Components")]
-        [SerializeField] private PooledScrollList<Ingredient, IngredientGUI> ingredientList;
+        [SerializeField] private IngredientScrollList scrolledList;
+        [SerializeField] private MarketPlaceFiltersGUI filters;
         [SerializeField] private BargainPopUp bargainPopUp;
-        [SerializeField] private TMP_Dropdown orderDropDown;
-
-        [Header("Debug")]
-        [SerializeField] private TMP_Text debugText;
+        [SerializeField] private Dropdown orderDropDown;
+        [SerializeField] private Text pageNumberText;
 
         #endregion
         #region Public Properties
 
+        /// <summary>
+        /// The <see cref="Ingredient"/>s displayed.
+        /// </summary>
         public IList<Ingredient> Ingredients 
         { 
             get
@@ -48,12 +53,9 @@ namespace BarthaSzabolcs.MarketPlace
         #endregion
         #region Private Fields
 
-        private Dictionary<IngredientType, List<Ingredient>> groupedIngredients;
-
-        // Filters
-        private string filterGroup = string.Empty;
-        private string filterName = string.Empty;
-        private string orderProperty = nameof(Ingredient.Name);
+        private string filterString = string.Empty;
+        private OrderProperty orderProperty = OrderProperty.Name;
+        private bool orderAscending = true;
 
         #endregion
 
@@ -64,149 +66,117 @@ namespace BarthaSzabolcs.MarketPlace
 
         #region Public
 
-        public void SetFilterName(string filter)
+        /// <summary>
+        /// Set the search word to filter the <see cref="Ingredients"/> with.
+        /// 
+        /// <para>
+        /// Hook this to <see cref="InputField.onValueChanged"/>.
+        /// </para>
+        ///
+        /// </summary>
+        public void SetFilterString(string filter)
         {
-            System.Diagnostics.Stopwatch stopwatch = new System.Diagnostics.Stopwatch();
-            stopwatch.Start();
-
-            filterName = filter;
+            filterString = filter;
 
             RefreshScrollList();
-
-            stopwatch.Stop();
-            Debug.Log($"Ordered By: {orderProperty}, time: {stopwatch.ElapsedMilliseconds} ms.");
-            debugText.text = $"{stopwatch.ElapsedMilliseconds} ms";
         }
 
-        public void SetFilterOrder()
+        /// <summary>
+        /// Set the property to use when ordering <see cref="Ingredients"/>.
+        /// 
+        /// <para>
+        /// Hook this to <see cref="Dropdown.onValueChanged"/>.
+        /// </para>
+        ///
+        /// </summary>
+        public void SetOrderProperty()
         {
-            orderProperty = orderDropDown.options[orderDropDown.value].text;
-            
-            System.Diagnostics.Stopwatch stopwatch = new System.Diagnostics.Stopwatch();
-            stopwatch.Start();
-
-            foreach (var key in groupedIngredients.Keys.ToArray())
+            if (Enum.IsDefined(typeof(OrderProperty), orderDropDown.value))
             {
-                groupedIngredients[key] = groupedIngredients[key]
-                    .OrderBy(orderProperty)
-                    .ToList();
+                orderProperty = (OrderProperty)orderDropDown.value;
+            }
+            else
+            {
+                orderProperty = OrderProperty.Name;
             }
 
             _ingredients = _ingredients
-                .OrderBy(orderProperty)
+                .OrderByProperty(orderProperty, orderAscending)
                 .ToList();
-
-            stopwatch.Stop();
-            Debug.Log($"Ordered By: {orderProperty}, time: {stopwatch.ElapsedMilliseconds} ms.");
-            debugText.text = $"{stopwatch.ElapsedMilliseconds} ms";
 
             RefreshScrollList();
         }
 
-        public void SetFilterGroup(string ingredientType)
+        /// <summary>
+        /// Set the order direction used when ordering <see cref="Ingredients"/>.
+        /// 
+        /// <para>
+        /// Hook this to <see cref="Button.onClick"/>.
+        /// </para>
+        ///
+        /// </summary>
+        public void SetAscendingingOrder()
         {
-            System.Diagnostics.Stopwatch stopwatch = new System.Diagnostics.Stopwatch();
-            stopwatch.Start();
+            orderAscending = !orderAscending;
 
-            filterGroup = ingredientType;
+            _ingredients = _ingredients
+                .OrderByProperty(orderProperty, orderAscending)
+                .ToList();
 
             RefreshScrollList();
-            
-            stopwatch.Stop();
-            Debug.Log($"Ordered By: {orderProperty}, time: {stopwatch.ElapsedMilliseconds} ms.");
-            debugText.text = $"{stopwatch.ElapsedMilliseconds} ms";
+        }
+
+        /// <summary>
+        /// Force an update of the scroll list.
+        /// </summary>
+        public void ForceUpdate()
+        {
+            scrolledList.UpdateContent(force: true);
         }
 
         #endregion
+        #region Private
 
-        private void Start()
+        private void Awake()
         {
-            ingredientList.OnItemClick += ShowPopUp;
+            scrolledList.ItemClickAction += ShowPopUp;
+            scrolledList.OnPageChange += RefreshPageNumber;
 
-            bargainPopUp.OnPurchaseAttempt += HandleItemPurchaseAttempt;
-            bargainPopUp.Show(false);
-        }
+            filters.OnFiltersChanged += RefreshScrollList;
 
-        private void PopulateOrderDropDown()
-        {
-            orderDropDown.ClearOptions();
-
-            orderDropDown.AddOptions(new List<TMP_Dropdown.OptionData>()
-            {
-                new TMP_Dropdown.OptionData()
-                {
-                    text = nameof(Ingredient.Name)
-                },
-                new TMP_Dropdown.OptionData()
-                {
-                    text = nameof(Ingredient.Price)
-                },
-                new TMP_Dropdown.OptionData()
-                {
-                    text = nameof(Ingredient.Ammount)
-                },
-            });
+            bargainPopUp.Hide();
         }
 
         private void SetIngredients(IList<Ingredient> ingredients)
         {
             _ingredients = ingredients
-                .OrderBy(orderProperty)
+                .OrderByProperty(orderProperty, orderAscending)
                 .ToList();
 
-            groupedIngredients = _ingredients
-                .GroupByType();
-
+            filters.SetGroupCounts(_ingredients.CountByType());
+            
             RefreshScrollList();
         }
 
         private void RefreshScrollList()
         {
-            ingredientList.Items =
-                GetCurrentGroup(filterGroup)
-                .FilterName(filterName)
+            scrolledList.Items = Ingredients
+                .FilterByType(filters.ActiveFilters)
+                .FilterByName(filterString)
                 .ToList();
-        }
-
-        private IList<Ingredient> GetCurrentGroup(string groupFilter)
-        {
-            if (string.IsNullOrEmpty(groupFilter))
-            {
-                return _ingredients;
-            }
-            else 
-            {
-                if (Enum.TryParse<IngredientType>(groupFilter, out var ingredientType) &&
-                    groupedIngredients.ContainsKey(ingredientType))
-                {
-                    return groupedIngredients[ingredientType];
-                }
-                else
-                {
-                    return Array.Empty<Ingredient>();
-                }
-            }
         }
 
         private void ShowPopUp(Ingredient ingredient)
         {
-            bargainPopUp.Show(true);
-            bargainPopUp.Model = ingredient;
+            bargainPopUp.Show(ingredient);
         }
 
-        private void HandleItemPurchaseAttempt(Ingredient ingredient)
+        private void RefreshPageNumber(int currentPage, int pageCount)
         {
-            if (true/*Random.value > 0.5f*/)
-            {
-                ingredient.Ammount = 0;
-            }
-            else
-            {
-                ingredient.Price = Mathf.CeilToInt(ingredient.Price * 1.1f);
-            }
-
-            bargainPopUp.Refresh();
+            pageNumberText.text = $"{currentPage}/{Mathf.Max(pageCount, 1)}";
         }
+        
+        #endregion
 
         #endregion
     }

@@ -2,33 +2,43 @@
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 
-using TMPro;
-
-using BarthaSzabolcs.PooledScrolledList;
+using BarthaSzabolcs.ModelGUIPool;
+using System;
 
 namespace BarthaSzabolcs.MarketPlace
 {
-    public class IngredientGUI : MonoBehaviour, IPointerClickHandler, IModelGUI<Ingredient>
+    public class IngredientGUI : MonoBehaviour, IModelGUI<Ingredient>
     {
         #region Datamembers
 
         #region Events
 
-        public event IModelGUI<Ingredient>.Click OnClick;
+        public event Action<Ingredient> OnClick;
 
         #endregion
         #region Editor Settings
 
         [Header("Components")]
         [SerializeField] private Image iconImage;
-        [SerializeField] private TextMeshProUGUI nameText;
-        [SerializeField] private TextMeshProUGUI ammountText;
-        [SerializeField] private TextMeshProUGUI priceText;
-        [SerializeField] private TextMeshProUGUI typeText;
+        [SerializeField] private Text nameText;
+        [SerializeField] private Text ammountText;
+        [SerializeField] private Text priceText;
 
         #endregion
         #region Public Properties
 
+        /// <summary>
+        /// The Model displayed.
+        /// 
+        /// <para>
+        /// Calls <see cref="Refresh"/> on set.
+        /// </para>
+        /// 
+        /// <para>
+        /// There is no other bond, you have to call <see cref="Refresh"/> to keep in sync with the changes.
+        /// </para>
+        /// 
+        /// </summary>
         public Ingredient Model
         {
             get
@@ -37,11 +47,8 @@ namespace BarthaSzabolcs.MarketPlace
             }
             set
             {
-                if (_model != value)
-                {
-                    _model = value;
-                    Refresh();
-                }
+                _model = value;
+                Refresh();
             }
         }
 
@@ -57,6 +64,9 @@ namespace BarthaSzabolcs.MarketPlace
 
         #region Methods
 
+        /// <summary>
+        /// Refresh the UI to match the <see cref="Model"/>.
+        /// </summary>
         public void Refresh()
         {
             if (Model != null)
@@ -65,7 +75,6 @@ namespace BarthaSzabolcs.MarketPlace
                 nameText.text = Model.Name;
                 ammountText.text = Model.Ammount.ToString();
                 priceText.text = Model.Price.ToString();
-                typeText.text = Model.Type.ToString();
             }
             else
             {
@@ -78,7 +87,6 @@ namespace BarthaSzabolcs.MarketPlace
 
         public void OnPointerClick(PointerEventData eventData)
         {
-            Debug.Log("Clicked: " + eventData.pointerCurrentRaycast.gameObject.name);
             OnClick?.Invoke(Model);
         }
 

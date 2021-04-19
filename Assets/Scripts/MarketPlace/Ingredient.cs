@@ -2,6 +2,9 @@
 
 namespace BarthaSzabolcs.MarketPlace
 {
+    /// <summary>
+    /// Placeholder class, to represent a marketplace item.
+    /// </summary>
     public class Ingredient
     {
         public IngredientType Type { get; set; }

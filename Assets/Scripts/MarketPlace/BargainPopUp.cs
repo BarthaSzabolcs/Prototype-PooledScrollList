@@ -1,31 +1,25 @@
 ﻿using UnityEngine;
-
-using TMPro;
+using UnityEngine.UI;
 
 namespace BarthaSzabolcs.MarketPlace
 {
     public class BargainPopUp : MonoBehaviour
     {
-        #region Events
-
-        public delegate void PurchaseAttempt(Ingredient ingredient);
-        public event PurchaseAttempt OnPurchaseAttempt;
-
-        #endregion
         #region Datamembers
 
         #region Editor Settings
 
         [Header("Components")]
         [SerializeField] private GameObject canvas;
-        [SerializeField] private TextMeshProUGUI ingredientText;
-        [SerializeField] private TextMeshProUGUI ammountText;
-        [SerializeField] private TextMeshProUGUI priceText;
+        [SerializeField] private Text ingredientNameText;
+        [SerializeField] private Text bargainChanceText;
+        [SerializeField] private InputField priceInput;
+        [SerializeField] private InputField ammountInput;
 
         #endregion
-        #region Public Properties
+        #region Private Properties
 
-        public Ingredient Model
+        private Ingredient Model
         {
             get
             {
@@ -46,6 +40,8 @@ namespace BarthaSzabolcs.MarketPlace
         #endregion
         #region Private Fields
 
+        private int ammount;
+        private int price;
 
         #endregion
 
@@ -54,31 +50,115 @@ namespace BarthaSzabolcs.MarketPlace
 
         #region Methods
 
-        public void Refresh()
+        #region Public
+
+        /// <summary>
+        /// Show the popup to bargain for <paramref name="ingredient"/>.
+        /// </summary>
+        public void Show(Ingredient ingredient)
         {
-            if (Model != null)
+            Model = ingredient;
+            canvas.SetActive(true);
+        }
+
+        /// <summary>
+        /// Hide the popup.
+        /// </summary>
+        public void Hide()
+        {
+            canvas.SetActive(false);
+        }
+
+        /// <summary>
+        /// Set the item price to bargain for.
+        /// 
+        /// <para>
+        /// Hook this to <see cref="InputField.onValueChanged"/>.
+        /// </para>
+        ///
+        /// </summary>
+        public void SetPrice(string value)
+        {
+            price = ParseInput(value);
+
+            RefreshBargainChance();
+        }
+
+        /// <summary>
+        /// Set the ammount to bargain for.
+        /// 
+        /// <para>
+        /// Hook this to <see cref="InputField.onValueChanged"/>.
+        /// </para>
+        ///
+        /// </summary>
+        public void SetAmmount(string value)
+        {
+            ammount = ParseInput(value);
+
+            RefreshBargainChance();
+        }
+
+        /// <summary>
+        /// Start the interaction with the <see cref="MarketPlace"/>.
+        /// </summary>
+        public void Submit()
+        {
+            MarketPlace.Instance.Bargain(Model, price, ammount);
+
+            if (Model.Ammount == 0)
             {
-                ingredientText.text = Model.Name;
-                ammountText.text = Model.Ammount.ToString();
-                priceText.text = Model.Price.ToString();
+                Model = null;
+                Hide();
             }
             else
             {
-                ingredientText.text = nameof(Ingredient.Name);
-                ammountText.text = nameof(Ingredient.Ammount);
-                priceText.text = nameof(Ingredient.Price);
+                Refresh();
             }
         }
 
-        public void HandleBuyClick()
+        #endregion
+        #region Private
+        
+        private int ParseInput(string value)
         {
-            OnPurchaseAttempt?.Invoke(Model);
+            if (int.TryParse(value, out int number))
+            {
+                return Mathf.Max(number, 0);
+            }
+            else
+            {
+                return 0;
+            }
         }
 
-        public void Show(bool show)
+        private void Refresh()
         {
-            canvas.SetActive(show);
+            if (Model != null)
+            {
+                ingredientNameText.text = Model.Name;
+
+                price = Model.Price;
+                priceInput.text = price.ToString();
+
+                ammount = Model.Ammount;
+                ammountInput.text = ammount.ToString();
+
+                RefreshBargainChance();
+            }
+            else
+            {
+                ingredientNameText.text = nameof(Ingredient.Name);
+            }
         }
+
+        private void RefreshBargainChance()
+        {
+            var bargainChance = MarketPlace.Instance.CalculateBargainChance(Model, price);
+            bargainChanceText.text = $"{bargainChance * 100}%";
+        }
+
+        #endregion
 
         #endregion
     }
